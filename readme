@@ -1,0 +1,6 @@
+dasm6502.c
+
+A portable disassembler for the 6502 CPU
+
+Copyright (C) Marat Fayzullin	1996-1999
+               Alex Krasivsky	1996
