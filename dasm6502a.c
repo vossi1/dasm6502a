@@ -1,16 +1,30 @@
 /** DASM6502: 6502 Disassembler *******************************/
 /**                                                          **/
-/**                        dasm6502.c                        **/
+/**                       dasm6502a.c                        **/
 /**                                                          **/
 /** This file contains the source of a portable disassembler **/
 /** for the 6502 CPU.                                        **/
 /**                                                          **/
 /** Copyright (C) Marat Fayzullin 1996-1999                  **/
 /**               Alex Krasivsky  1996                       **/
+/**               Vossi           2019                       **/
 /**     You are not allowed to distribute this software      **/
 /**     commercially. Please, notify me, if you make any     **/
 /**     changes to this file.                                **/
 /**************************************************************/
+
+// Version 3.1a modified by Vossi 02/2019 in Hamburg/Germany
+//    to output a source-code for ACME reassembling
+// Unused labels are easy to remove with my DASM6502-RUL !
+// - added option to not print address counter
+// - changed all hex numbers to lower case
+// - cutted counter to xxxx, added l (labels in ACME)
+// - cutted branch addresses to xxxx, added l (labels in ACME)
+// - removed <invalid opcode> comment
+// - changed .db to !byte (ACME style)
+// - added dasm comment, !cpu type, *= start address
+// - changed type byte (56 warnings) to char: static char *MN[]
+// - removed " a" from all shift instructions 
 
 #include <stdio.h>
 #include <string.h>
@@ -26,6 +40,7 @@ typedef unsigned char byte;   /* This type is exactly 1 byte  */
 typedef unsigned short word;  /* This type is exactly 2 bytes */
 
 static int PrintHex;          /* Print hexadecimal codes      */
+static int Address;           /* Print address counter        */
 static unsigned long Counter; /* Address counter              */
 
 enum { Ac=0,Il,Im,Ab,Zp,Zx,Zy,Ax,Ay,Rl,Ix,Iy,In,No };
@@ -35,7 +50,7 @@ static int DAsm(char *S,byte *A,unsigned long PC);
     /* This function will disassemble a single command and    */
     /* return the number of bytes disassembled.               */
 
-static byte *MN[] =
+static char *MN[] =
 {
   "adc","and","asl","bcc","bcs","beq","bit","bmi",
   "bne","bpl","brk","bvc","bvs","clc","cld","cli",
@@ -95,25 +110,25 @@ int DAsm(char *S,byte *A,unsigned long PC)
 
   switch(AD[OP+1])
   {
-    case Ac: sprintf(S,"%s a",MN[AD[OP]]);break;
+    case Ac: sprintf(S,"%s",MN[AD[OP]]);break;
     case Il: sprintf(S,"%s",MN[AD[OP]]);break;
 
     case Rl: J=*B++;PC+=2+((J<0x80)? J:(J-256)); 
-             sprintf(S,"%s $%08lX",MN[AD[OP]],PC);break;
+             sprintf(S,"%s l%04lx",MN[AD[OP]],PC);break;
 
-    case Im: sprintf(S,"%s #$%02X",MN[AD[OP]],*B++);break;
-    case Zp: sprintf(S,"%s $%02X",MN[AD[OP]],*B++);break;
-    case Zx: sprintf(S,"%s $%02X,x",MN[AD[OP]],*B++);break;
-    case Zy: sprintf(S,"%s $%02X,y",MN[AD[OP]],*B++);break;
-    case Ix: sprintf(S,"%s ($%02X,x)",MN[AD[OP]],*B++);break;
-    case Iy: sprintf(S,"%s ($%02X),y",MN[AD[OP]],*B++);break;
+    case Im: sprintf(S,"%s #$%02x",MN[AD[OP]],*B++);break;
+    case Zp: sprintf(S,"%s $%02x",MN[AD[OP]],*B++);break;
+    case Zx: sprintf(S,"%s $%02x,x",MN[AD[OP]],*B++);break;
+    case Zy: sprintf(S,"%s $%02x,y",MN[AD[OP]],*B++);break;
+    case Ix: sprintf(S,"%s ($%02x,x)",MN[AD[OP]],*B++);break;
+    case Iy: sprintf(S,"%s ($%02x),y",MN[AD[OP]],*B++);break;
 
-    case Ab: sprintf(S,"%s $%04X",MN[AD[OP]],B[1]*256+B[0]);B+=2;break;
-    case Ax: sprintf(S,"%s $%04X,x",MN[AD[OP]],B[1]*256+B[0]);B+=2;break;
-    case Ay: sprintf(S,"%s $%04X,y",MN[AD[OP]],B[1]*256+B[0]);B+=2;break;
-    case In: sprintf(S,"%s ($%04X)",MN[AD[OP]],B[1]*256+B[0]);B+=2;break;
+    case Ab: sprintf(S,"%s $%04x",MN[AD[OP]],B[1]*256+B[0]);B+=2;break;
+    case Ax: sprintf(S,"%s $%04x,x",MN[AD[OP]],B[1]*256+B[0]);B+=2;break;
+    case Ay: sprintf(S,"%s $%04x,y",MN[AD[OP]],B[1]*256+B[0]);B+=2;break;
+    case In: sprintf(S,"%s ($%04x)",MN[AD[OP]],B[1]*256+B[0]);B+=2;break;
 
-    default: sprintf(S,".db $%02X\t\t; <Invalid OPcode>",OP/2);
+    default: sprintf(S,"!byte $%02x",OP/2);
   }
   return(B-A);
 }
@@ -128,7 +143,7 @@ int main(int argc,char *argv[])
   byte Buf[32];
   char S[128];
 
-  Counter=0L;PrintHex=0;
+  Counter=0L;PrintHex=0;Address=1;
 
   for(N=1;(N<argc)&&(*argv[N]=='-');N++)
     switch(argv[N][1])
@@ -140,6 +155,7 @@ int main(int argc,char *argv[])
           switch(argv[N][J])
           {
             case 'h': PrintHex=1;break;
+            case 'a': Address=0;break;
             default:
               fprintf(stderr,"%s: Unknown option -%c\n",argv[0],argv[N][J]);
           }
@@ -147,12 +163,13 @@ int main(int argc,char *argv[])
 
   if(N==argc)  
   {
-    fprintf(stderr,"DASM6502 6502 Disassembler v.3.1 by Marat Fayzullin\n");
+    fprintf(stderr,"DASM6502a 6502 Disassembler v.3.1 by Marat Fayzullin / modified by Vossi 02/2019\n");
 #ifdef ZLIB
     fprintf(stderr,"  This program will transparently uncompress GZIPped files.\n");
 #endif
     fprintf(stderr,"Usage: %s [-h] [-oOrigin] file\n",argv[0]);
     fprintf(stderr,"  -h - Print hexadecimal values\n");
+    fprintf(stderr,"  -a - Don't print address counter\n");
     fprintf(stderr,"  -o - Count addresses from a given origin (hex)\n");
     return(1);
   }
@@ -160,14 +177,18 @@ int main(int argc,char *argv[])
   if(!(F=fopen(argv[N],"rb")))
   { printf("\n%s: Can't open file %s\n",argv[0],argv[N]);return(1); }
     
+  printf("; disassembled by DASM6502a v.3.1 by Marat Fayzullin\n; modified by Vossi 02/2019\n!cpu 6502\n*= $%04lx\n",Counter);
   for(N=0;N+=fread(Buf+N,1,16-N,F);)
   {
     memset(Buf+N,0,32-N);
     I=DAsm(S,Buf,Counter);
-    printf("%08lX:",Counter);
+   if(Address)
+    {
+    printf("l%04lx:",Counter);
+    }
     if(PrintHex)
     {
-      for(J=0;J<I;J++) printf(" %02X",Buf[J]);
+      for(J=0;J<I;J++) printf(" %02x",Buf[J]);
       if(I<3) printf("\t");
     }
     printf("\t%s\n",S);

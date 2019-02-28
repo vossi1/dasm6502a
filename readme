@@ -1,6 +1,21 @@
-dasm6502.c
+dasm6502a.c
 
 A portable disassembler for the 6502 CPU
 
 Copyright (C) Marat Fayzullin	1996-1999
                Alex Krasivsky	1996
+
+Version 3.1a modified by Vossi 02/2019 in Hamburg/Germany 
+	to output a source-code for ACME reassembling
+
+Unused labels are easy to remove with my DASM6502-RUL !
+
+- added option to not print address counter
+- changed all hex numbers to lower case
+- cutted counter to xxxx, added l (labels in ACME)
+- cutted branch addresses to xxxx, added l (labels in ACME)
+- removed <invalid opcode> comment
+- changed .db to !byte (ACME style)
+- added dasm comment, !cpu type, *= start address
+- changed type byte (56 warnings) to char: static char *MN[]
+- removed " a" from all shift instructions 
